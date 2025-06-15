@@ -280,7 +280,8 @@
                 1. 访问 <a href="https://steamcommunity.com/dev/apikey" style="color: #66c0f4;">Steam API Key 页面</a><br>
                 2. 登录您的 Steam 账户<br>
                 3. 填写域名（可以填写 localhost）并获取 API Key<br><br>
-                <strong>Steam ID 格式：</strong> 可以是数字 ID（如：76561198000000000）或用户名
+                <strong>Steam ID 格式：</strong> 可以是数字 ID（如：76561198000000000）或用户名<br><br>
+                <strong>调试模式：</strong> 打开浏览器开发者工具(F12)查看详细错误信息
             </div>
         </div>
 
@@ -323,20 +324,67 @@
             }
         }
 
-        // 使用CORS代理来解决跨域问题
-        const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+        // 多个CORS代理备选方案
+        const CORS_PROXIES = [
+            'https://api.allorigins.win/raw?url=',
+            'https://api.codetabs.com/v1/proxy?quest=',
+            'https://cors-anywhere.herokuapp.com/'
+        ];
+        
+        let currentProxyIndex = 0;
+
+        async function makeProxyRequest(url, retryCount = 0) {
+            if (retryCount >= CORS_PROXIES.length) {
+                throw new Error('所有代理服务器都无法访问，请稍后再试');
+            }
+
+            try {
+                const proxyUrl = CORS_PROXIES[currentProxyIndex] + encodeURIComponent(url);
+                console.log(`尝试使用代理 ${currentProxyIndex + 1}: ${CORS_PROXIES[currentProxyIndex]}`);
+                
+                const response = await fetch(proxyUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    timeout: 10000
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const text = await response.text();
+                console.log('响应内容预览:', text.substring(0, 200));
+                
+                // 检查是否返回了HTML错误页面而不是JSON
+                if (text.trim().startsWith('<')) {
+                    throw new Error('代理服务器返回了HTML页面而不是JSON数据');
+                }
+                
+                // 尝试解析JSON
+                try {
+                    return JSON.parse(text);
+                } catch (parseError) {
+                    console.error('JSON解析错误:', parseError);
+                    console.error('原始响应:', text);
+                    throw new Error('返回的数据不是有效的JSON格式');
+                }
+                
+            } catch (error) {
+                console.error(`代理 ${currentProxyIndex + 1} 失败:`, error.message);
+                
+                // 尝试下一个代理
+                currentProxyIndex = (currentProxyIndex + 1) % CORS_PROXIES.length;
+                return makeProxyRequest(url, retryCount + 1);
+            }
+        }
         
         async function resolveSteamId(vanityUrl, apiKey) {
             const url = `https://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key=${apiKey}&vanityurl=${vanityUrl}`;
-            const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+            const data = await makeProxyRequest(url);
             
-            if (!response.ok) {
-                throw new Error('网络请求失败，请检查网络连接');
-            }
-            
-            const data = await response.json();
-            
-            if (data.response.success !== 1) {
+            if (!data.response || data.response.success !== 1) {
                 throw new Error('用户名解析失败，请检查用户名是否正确');
             }
             
@@ -345,16 +393,10 @@
 
         async function fetchUserInfo(steamId, apiKey) {
             const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${apiKey}&steamids=${steamId}`;
-            const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+            const data = await makeProxyRequest(url);
             
-            if (!response.ok) {
-                throw new Error('网络请求失败，请检查网络连接');
-            }
-            
-            const data = await response.json();
-            
-            if (!data.response.players.length) {
-                throw new Error('未找到用户信息');
+            if (!data.response || !data.response.players || !data.response.players.length) {
+                throw new Error('未找到用户信息，请检查Steam ID是否正确');
             }
             
             return data.response.players[0];
@@ -362,20 +404,19 @@
 
         async function fetchRecentlyPlayedGames(steamId, apiKey) {
             const url = `https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v0001/?key=${apiKey}&steamid=${steamId}&format=json`;
-            const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+            const data = await makeProxyRequest(url);
             
-            if (!response.ok) {
-                throw new Error('网络请求失败，请检查网络连接');
+            if (!data.response) {
+                throw new Error('无法获取游戏数据，请检查API密钥和Steam ID');
             }
             
-            const data = await response.json();
-            
-            if (!data.response.games) {
+            if (!data.response.games || data.response.games.length === 0) {
                 throw new Error('该用户最近没有游戏记录或游戏库为私有');
             }
             
             // 按两周内游玩时间排序，取前5个
             return data.response.games
+                .filter(game => game.playtime_2weeks > 0) // 只显示有游玩时间的游戏
                 .sort((a, b) => b.playtime_2weeks - a.playtime_2weeks)
                 .slice(0, 5);
         }
