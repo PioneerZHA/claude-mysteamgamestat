@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Steam 游戏统计查询器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1b2838 0%, #2a475e 100%);
+            min-height: 100vh;
+            color: #c7d5e0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(27, 40, 56, 0.9);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(199, 213, 224, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            color: #66c0f4;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .input-section {
+            background: rgba(42, 71, 94, 0.5);
+            padding: 25px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(102, 192, 244, 0.2);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        input {
+            flex: 1;
+            min-width: 250px;
+            padding: 12px 16px;
+            border: 2px solid rgba(102, 192, 244, 0.3);
+            border-radius: 6px;
+            background: rgba(27, 40, 56, 0.8);
+            color: #c7d5e0;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #66c0f4;
+            box-shadow: 0 0 0 3px rgba(102, 192, 244, 0.2);
+        }
+
+        input::placeholder {
+            color: rgba(199, 213, 224, 0.5);
+        }
+
+        button {
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #66c0f4 0%, #4a9eff 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(102, 192, 244, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(102, 192, 244, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .help-text {
+            font-size: 14px;
+            color: rgba(199, 213, 224, 0.7);
+            margin-top: 10px;
+            line-height: 1.5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 18px;
+            color: #66c0f4;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            border: 3px solid rgba(102, 192, 244, 0.3);
+            border-radius: 50%;
+            border-top-color: #66c0f4;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(204, 68, 68, 0.2);
+            border: 1px solid rgba(204, 68, 68, 0.4);
+            color: #ff6b6b;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .results {
+            margin-top: 30px;
+        }
+
+        .user-info {
+            background: rgba(42, 71, 94, 0.5);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            border: 1px solid rgba(102, 192, 244, 0.2);
+        }
+
+        .avatar {
+            width: 64px;
+            height: 64px;
+            border-radius: 8px;
+            border: 2px solid #66c0f4;
+        }
+
+        .user-details h3 {
+            color: #66c0f4;
+            margin-bottom: 5px;
+            font-size: 1.2em;
+        }
+
+        .game-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .game-item {
+            background: rgba(42, 71, 94, 0.6);
+            padding: 20px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            transition: all 0.3s ease;
+            border: 1px solid rgba(102, 192, 244, 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .game-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+            border-color: #66c0f4;
+        }
+
+        .game-rank {
+            font-size: 2em;
+            font-weight: bold;
+            color: #66c0f4;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .game-icon {
+            width: 64px;
+            height: 64px;
+            border-radius: 6px;
+            object-fit: cover;
+            border: 2px solid rgba(102, 192, 244, 0.3);
+        }
+
+        .game-info {
+            flex: 1;
+        }
+
+        .game-name {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #c7d5e0;
+            margin-bottom: 8px;
+        }
+
+        .game-time {
+            font-size: 1.1em;
+            color: #66c0f4;
+            font-weight: 500;
+        }
+
+        .progress-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #66c0f4, #4a9eff);
+            transition: width 0.5s ease;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .input-group {
+                flex-direction: column;
+            }
+            
+            input {
+                min-width: auto;
+            }
+            
+            .game-item {
+                flex-direction: column;
+                text-align: center;
+                gap: 15px;
+            }
+            
+            .game-rank {
+                position: absolute;
+                top: 10px;
+                right: 15px;
+                font-size: 1.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎮 Steam 游戏统计</h1>
+        
+        <div class="input-section">
+            <div class="input-group">
+                <input type="text" id="steamId" placeholder="输入 Steam ID 或用户名">
+                <input type="text" id="apiKey" placeholder="输入 Steam API Key">
+                <button onclick="fetchGameStats()">查询游戏数据</button>
+            </div>
+            <div class="help-text">
+                <strong>获取 Steam API Key：</strong><br>
+                1. 访问 <a href="https://steamcommunity.com/dev/apikey" style="color: #66c0f4;">Steam API Key 页面</a><br>
+                2. 登录您的 Steam 账户<br>
+                3. 填写域名（可以填写 localhost）并获取 API Key<br><br>
+                <strong>Steam ID 格式：</strong> 可以是数字 ID（如：76561198000000000）或用户名
+            </div>
+        </div>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let userData = null;
+
+        async function fetchGameStats() {
+            const steamId = document.getElementById('steamId').value.trim();
+            const apiKey = document.getElementById('apiKey').value.trim();
+            const resultsDiv = document.getElementById('results');
+
+            if (!steamId || !apiKey) {
+                showError('请输入 Steam ID 和 API Key');
+                return;
+            }
+
+            resultsDiv.innerHTML = '<div class="loading"><div class="spinner"></div>正在获取数据...</div>';
+
+            try {
+                // 如果输入的不是纯数字，先解析用户名获取 Steam ID
+                let resolvedSteamId = steamId;
+                if (!/^\d+$/.test(steamId)) {
+                    resolvedSteamId = await resolveSteamId(steamId, apiKey);
+                }
+
+                // 获取用户信息和游戏数据
+                const [userInfo, gameStats] = await Promise.all([
+                    fetchUserInfo(resolvedSteamId, apiKey),
+                    fetchRecentlyPlayedGames(resolvedSteamId, apiKey)
+                ]);
+
+                userData = { userInfo, gameStats };
+                displayResults();
+
+            } catch (error) {
+                showError('获取数据失败: ' + error.message);
+            }
+        }
+
+        // 使用CORS代理来解决跨域问题
+        const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+        
+        async function resolveSteamId(vanityUrl, apiKey) {
+            const url = `https://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key=${apiKey}&vanityurl=${vanityUrl}`;
+            const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+            
+            if (!response.ok) {
+                throw new Error('网络请求失败，请检查网络连接');
+            }
+            
+            const data = await response.json();
+            
+            if (data.response.success !== 1) {
+                throw new Error('用户名解析失败，请检查用户名是否正确');
+            }
+            
+            return data.response.steamid;
+        }
+
+        async function fetchUserInfo(steamId, apiKey) {
+            const url = `https://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${apiKey}&steamids=${steamId}`;
+            const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+            
+            if (!response.ok) {
+                throw new Error('网络请求失败，请检查网络连接');
+            }
+            
+            const data = await response.json();
+            
+            if (!data.response.players.length) {
+                throw new Error('未找到用户信息');
+            }
+            
+            return data.response.players[0];
+        }
+
+        async function fetchRecentlyPlayedGames(steamId, apiKey) {
+            const url = `https://api.steampowered.com/IPlayerService/GetRecentlyPlayedGames/v0001/?key=${apiKey}&steamid=${steamId}&format=json`;
+            const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+            
+            if (!response.ok) {
+                throw new Error('网络请求失败，请检查网络连接');
+            }
+            
+            const data = await response.json();
+            
+            if (!data.response.games) {
+                throw new Error('该用户最近没有游戏记录或游戏库为私有');
+            }
+            
+            // 按两周内游玩时间排序，取前5个
+            return data.response.games
+                .sort((a, b) => b.playtime_2weeks - a.playtime_2weeks)
+                .slice(0, 5);
+        }
+
+        function displayResults() {
+            const resultsDiv = document.getElementById('results');
+            const { userInfo, gameStats } = userData;
+            
+            let html = `
+                <div class="user-info">
+                    <img src="${userInfo.avatarfull}" alt="Avatar" class="avatar">
+                    <div class="user-details">
+                        <h3>${userInfo.personaname}</h3>
+                        <p>Steam ID: ${userInfo.steamid}</p>
+                        <p>状态: ${getPlayerState(userInfo.personastate)}</p>
+                    </div>
+                </div>
+                
+                <h2 style="color: #66c0f4; margin-bottom: 20px; font-size: 1.5em;">📊 两周内游玩时间 TOP 5</h2>
+                <div class="game-list">
+            `;
+
+            if (gameStats.length === 0) {
+                html += '<p style="text-align: center; padding: 40px; color: #999;">该用户最近两周没有游戏记录</p>';
+            } else {
+                const maxPlaytime = Math.max(...gameStats.map(game => game.playtime_2weeks));
+                
+                gameStats.forEach((game, index) => {
+                    const hours = Math.floor(game.playtime_2weeks / 60);
+                    const minutes = game.playtime_2weeks % 60;
+                    const timeText = hours > 0 ? `${hours}小时 ${minutes}分钟` : `${minutes}分钟`;
+                    const progressWidth = (game.playtime_2weeks / maxPlaytime) * 100;
+                    
+                    html += `
+                        <div class="game-item">
+                            <div class="game-rank">${index + 1}</div>
+                            <img src="https://media.steampowered.com/steamcommunity/public/images/apps/${game.appid}/${game.img_icon_url}.jpg" 
+                                 alt="${game.name}" class="game-icon" 
+                                 onerror="this.src='data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQiIGhlaWdodD0iNjQiIHZpZXdCb3g9IjAgMCA2NCA2NCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiBmaWxsPSIjMmE0NzVlIi8+CjxwYXRoIGQ9Ik0yMCAyMEg0NFY0NEgyMFYyMFoiIGZpbGw9IiM2NmMwZjQiLz4KPC9zdmc+'">
+                            <div class="game-info">
+                                <div class="game-name">${game.name}</div>
+                                <div class="game-time">两周内游玩: ${timeText}</div>
+                            </div>
+                            <div class="progress-bar" style="width: ${progressWidth}%"></div>
+                        </div>
+                    `;
+                });
+            }
+
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+        }
+
+        function getPlayerState(state) {
+            const states = {
+                0: '离线',
+                1: '在线',
+                2: '忙碌',
+                3: '离开',
+                4: '暂停',
+                5: '想要交易',
+                6: '想要游戏'
+            };
+            return states[state] || '未知';
+        }
+
+        function showError(message) {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<div class="error">❌ ${message}</div>`;
+        }
+
+        // 允许按回车键查询
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                fetchGameStats();
+            }
+        });
+    </script>
+</body>
+</html>
